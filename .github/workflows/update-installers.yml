@@ -7,11 +7,11 @@ on:
 
 permissions:
     contents: read
-    
+
 jobs:
     update-installers:
         runs-on: windows-latest
-
+        
         steps:
             - name: Checkout Full-Magic-Pack
                 uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
                 uses: actions/setup-python@v5
                 with:
                     python-version: "3.12"
-
+            
             - name: Generate installers
                 shell: python
                 env:
@@ -41,7 +41,7 @@ jobs:
                     import shutil
                     import subprocess
                     from pathlib import Path
-
+                    
                     #### Set up some context
                     root = Path.cwd()
                     data = root / "data"
@@ -55,11 +55,11 @@ jobs:
                         "installer group",
                         "version",
                     }
-
+                    
                     #### Get a list of packages that have changes in the push that triggered this job
                     before = os.environ["GITHUB_BEFORE_SHA"]
                     after = os.environ["GITHUB_AFTER_SHA"]
-
+                    
                     ## Ensure the "before" commit is available locally (ignore errors)
                     if subprocess.run(
                         [
@@ -81,7 +81,7 @@ jobs:
                                 before,
                             ]
                         )
-
+                    
                     ## Compute diff (transmit errors)
                     changed = subprocess.check_output(
                         [
@@ -94,53 +94,53 @@ jobs:
                         text=True,
                         stderr=subprocess.STDOUT,
                     ).splitlines()
-
+                    
                     #### Iterate on the packages in the data folder (folders that end in ".mse-*")
                     with installer_list.open("w", encoding="utf-8", newline="\n") as l:
                     
                         for package in sorted(data.iterdir()):
-                        
+                            
                             if not package.is_dir():
                                 continue
-
+                            
                             match = re.fullmatch(r"(.+)\.mse-(.+)", package.name)
-
+                            
                             if not match:
                                 continue
-
+                            
                             package_file = package / match.group(2)
-
+                            
                             if not package_file.exists():
                                 print(f"::warning::file {package_file} is missing in package {package.name}.")
                                 continue
-
+                            
                             #### Get the header keys we need
                             found_keys = {}
-
+                            
                             with package_file.open(encoding="utf-8") as f:
                                 for i, line in enumerate(f):
-
+                                    
                                     line = line.rstrip("\r\n")
-
+                                    
                                     if ":" not in line:
                                         continue
-
+                                    
                                     key, value = line.split(":", 1)
-
+                                    
                                     if key in keys:
                                         found_keys[key] = value.strip()
                             
                             if "version" not in found_keys:
                                 print(f"::warning::no version specified for package {package.name}.")
                                 found_keys['version'] = "0.0.0"
-
+                            
                             if "installer group" not in found_keys:
                                 print(f"::warning::no installer group specified for package {package.name}.")
                                 found_keys['installer group'] = "Unknown/" + package.name
-
+                            
                             if "short name" not in found_keys and "full name" not in found_keys:
                                 print(f"::warning::no short or full name specified for package {package.name}.")
-
+                            
                             found_keys['short name'] = found_keys.get("short name", found_keys.get("full name", package.name))
                             found_keys['full name'] = found_keys.get("full name", found_keys.get("short name", package.name))
                             
@@ -162,14 +162,14 @@ jobs:
                             with package_file.open(encoding="utf-8") as f:
                                 lines = f.readlines()
                                 for i, line in enumerate(lines):
-
+                                    
                                     line = line.rstrip("\r\n")
-
+                                    
                                     if ":" not in line:
                                         continue
-
+                                    
                                     key, value = line.split(":", 1)
-
+                                    
                                     if key == "depends on":
                                         no_value = value.strip() == ""
                                         if no_value and i + 2 >= len(lines):
@@ -209,7 +209,7 @@ jobs:
                                 #### Copy the icon to the Installer-Pack repo
                                 if "icon" in found_keys:
                                     icon_file = package / found_keys['icon']
-
+                                    
                                     if icon_file.is_file():
                                         shutil.copy2(
                                             icon_file,
@@ -217,23 +217,23 @@ jobs:
                                         )
                                     else:
                                         print(f"::warning::icon file {found_keys['icon']} not found for package {package.name}.")
-
+                    
                     #### Copy the installer list to the Installer-Pack repo
                     shutil.copy2(installer_list, installer_repo / installer_list.name)
-
+            
             - name: Commit and push
                 working-directory: installer-pack
                 shell: pwsh
                 run: |
                     git config user.name "github-actions[bot]"
                     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
+                    
                     git add .
-
+                    
                     if (git diff --cached --quiet) {
                         Write-Host "No changes to commit."
                         exit 0
                     }
-
+                    
                     git commit -m "[Job] Update installers"
                     git push
