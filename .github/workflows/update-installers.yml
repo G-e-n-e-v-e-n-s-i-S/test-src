@@ -40,7 +40,6 @@ jobs:
           import re
           import time
           import shutil
-          import win32api
           import subprocess
           from pathlib import Path
 
@@ -66,14 +65,18 @@ jobs:
                   print(f"::error::executable mse.exe not found in root folder.")
                   sys.exit(1)
               else:
-                  info = win32api.GetFileVersionInfo(exe, '\\')
-                  ms = info['FileVersionMS']
-                  ls = info['FileVersionLS']
-                  print(f"::notice::hims {win32api.HIWORD(ms)}.")
-                  print(f"::notice::loms {win32api.LOWORD(ms)}.")
-                  print(f"::notice::hils {win32api.HIWORD(ls)}.")
-                  print(f"::notice::lols {win32api.LOWORD(ls)}.")
-              
+                  exe_version = subprocess.check_output(
+                      [
+                          "powershell",
+                          "-NoProfile",
+                          "-Command",
+                          "(Get-Item 'mse.exe').VersionInfo.FileVersion",
+                      ],
+                      cwd=root,
+                      text=True,
+                  ).strip()
+                  print(f"::notice::mse.exe version: {version_output}")
+
               #### Get a list of packages that have changed in the push that triggered this job
               before = os.environ["GITHUB_BEFORE_SHA"]
               after = os.environ["GITHUB_AFTER_SHA"]
