@@ -40,8 +40,52 @@ jobs:
           import re
           import time
           import shutil
+          import zipfile
           import subprocess
           from pathlib import Path
+
+          #### Get a list of packages that have changed in the push that triggered this job
+          before = os.environ["GITHUB_BEFORE_SHA"]
+          after = os.environ["GITHUB_AFTER_SHA"]
+
+          ## Ensure the "before" commit is available locally (ignore errors)
+          t0 = time.time()
+          if subprocess.run(
+              [
+                  "git",
+                  "cat-file",
+                  "-e",
+                  f"{before}^{{commit}}",
+              ],
+              stdout=subprocess.DEVNULL,
+              stderr=subprocess.DEVNULL,
+          ).returncode != 0:
+              subprocess.check_call(
+                  [
+                      "git",
+                      "fetch",
+                      "--no-tags",
+                      "--depth=1",
+                      "origin",
+                      before,
+                  ]
+              )
+              print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
+
+          ## Compute diff (transmit errors)
+          t0 = time.time()
+          changed = subprocess.check_output(
+              [
+                  "git",
+                  "diff",
+                  "--name-only",
+                  before,
+                  after,
+              ],
+              text=True,
+              stderr=subprocess.STDOUT,
+          ).splitlines()
+          print(f"::notice::computed diff in {time.time() - t0:.1f}s.")
 
           #### Set up some context
           keys = {
@@ -51,74 +95,60 @@ jobs:
               "installer group",
               "version",
           }
-          
+
           root = Path.cwd()
           exe = root / "mse.exe"
+          exe2 = root / "magicseteditor.exe"
+          changelog = root / "changelog.txt"
           data = root / "data"
           installer_repo = root / "installer-pack"
           installer_list = root / "packages.txt"
 
           with installer_list.open("w", encoding="utf-8", newline="\n") as l:
 
-              #### Check for mse.exe
+              #### Check for exe
               if not exe.is_file():
-                  print(f"::error::executable mse.exe not found in root folder.")
+                  print(f"::error::executable {exe.name} not found in root folder.")
                   sys.exit(1)
-              else:
-                  exe_version = subprocess.check_output(
-                      [
-                          "powershell",
-                          "-NoProfile",
-                          "-Command",
-                          "(Get-Item 'mse.exe').VersionInfo.FileVersion",
-                      ],
-                      cwd=root,
-                      text=True,
-                  ).strip()
-                  print(f"::notice::mse.exe version: {exe_version}")
+              if not exe2.is_file():
+                  print(f"::error::executable {exe2.name} not found in root folder.")
+                  sys.exit(1)
 
-              #### Get a list of packages that have changed in the push that triggered this job
-              before = os.environ["GITHUB_BEFORE_SHA"]
-              after = os.environ["GITHUB_AFTER_SHA"]
-
-              ## Ensure the "before" commit is available locally (ignore errors)
-              t0 = time.time()
-              if subprocess.run(
+              #### Write exe entry in the installer list
+              exe_version = subprocess.check_output(
                   [
-                      "git",
-                      "cat-file",
-                      "-e",
-                      f"{before}^{{commit}}",
+                      "powershell",
+                      "-NoProfile",
+                      "-Command",
+                      "(Get-Item '" + exe.name + "').VersionInfo.FileVersion",
                   ],
-                  stdout=subprocess.DEVNULL,
-                  stderr=subprocess.DEVNULL,
-              ).returncode != 0:
-                  subprocess.check_call(
-                      [
-                          "git",
-                          "fetch",
-                          "--no-tags",
-                          "--depth=1",
-                          "origin",
-                          before,
-                      ]
-                  )
-                  print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
-
-              ## Compute diff (transmit errors)
-              t0 = time.time()
-              changed = subprocess.check_output(
-                  [
-                      "git",
-                      "diff",
-                      "--name-only",
-                      before,
-                      after,
-                  ],
+                  cwd=root,
                   text=True,
-                  stderr=subprocess.STDOUT,
-              ).splitlines()
-              print(f"::notice::computed diff in {time.time() - t0:.1f}s.")
+              ).strip()
+
+              l.write(f"installer:\n")
+              l.write(f"	url:				https://github.com/MagicSetEditorPacks/Installer-Pack/raw/refs/heads/main/magicseteditor.zip\n")
+              l.write(f"	downloadable:		true\n")
+              l.write(f"	package:\n")
+              l.write(f"		name:				Magic Set Editor\n")
+              l.write(f"		version:			{exe_version}\n")
+              l.write(f"		installer group:	Magic Set Editor\n")
+              l.write(f"		short name:			Magic Set Editor\n")
+              l.write(f"		full name:			Application\n")
+
+              #### Check if exe was updated, if so rebuild the zip archive
+              if exe.name in changed:
+                  zip_path = root / "magicseteditor.zip"
+
+                  with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                      zf.write(exe, arcname=exe.name)
+                      zf.write(exe2, arcname=exe2.name)
+                      if not changelog.exists():
+                          print(f"::warning::{changelog.name} not found in root folder.")
+                      else:
+                          zf.write(changelog, arcname=changelog.name)
+
+                  shutil.copy2(zip_path, installer_repo / zip_path.name)
 
               #### Iterate on the packages in the data folder (folders that end in ".mse-*")
               for package in sorted(data.iterdir()):
@@ -241,7 +271,7 @@ jobs:
                           t0 = time.time()
                           subprocess.run(
                               [
-                                  str(root / "mse.exe"),
+                                  str(exe),
                                   "--create-installer",
                                   package.name,
                                   installer_name,
@@ -266,10 +296,10 @@ jobs:
                               )
 
                       except subprocess.TimeoutExpired:
-                          print(f"::error::mse.exe timed out building {package.name} (likely a stuck dialog thrown because a package that this one depends on is missing from the data folder).")
+                          print(f"::error::{exe.name} timed out building {package.name} (likely a stuck dialog thrown because a package that this one depends on is missing from the data folder).")
                           continue
                       except subprocess.CalledProcessError as e:
-                          print(f"::error::mse.exe failed building {package.name} (exit code {e.returncode}).")
+                          print(f"::error::{exe.name} failed building {package.name} (exit code {e.returncode}).")
                           continue
                       except OSError as e:
                           print(f"::error::failed to copy installer/icon for {package.name}: {e}")
