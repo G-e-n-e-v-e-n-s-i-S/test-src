@@ -138,7 +138,7 @@ jobs:
               l.write(f"		full name:			Application\n")
 
               #### Check if exe was updated, if so rebuild the zip archive
-              if exe.name in changed:
+              if exe.name in changed or exe2.name in changed:
                   zip_path = root / "magicseteditor.zip"
 
                   with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
