@@ -180,8 +180,8 @@ jobs:
                                   continue
                               l.write(f"		{line}\n")
                               if no_value:
-                                  l.write(f"		{lines[i + 1]}\n")
-                                  l.write(f"		{lines[i + 2]}\n")
+                                  l.write(f"		{lines[i + 1].rstrip("\r\n")}\n")
+                                  l.write(f"		{lines[i + 2].rstrip("\r\n")}\n")
 
                   #### Check if this package has changed
                   package_prefix = f"data/{package.name}/".replace("\\", "/")
