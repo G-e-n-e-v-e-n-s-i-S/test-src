@@ -29,7 +29,13 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-
+      
+      - name: Disable SmartScreen
+        shell: pwsh
+        run: |
+          New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Force | Out-Null
+          Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" -Value 0
+              
       - name: Generate installers
         shell: python
         env:
