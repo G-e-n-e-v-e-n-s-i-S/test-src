@@ -36,6 +36,7 @@ jobs:
           GITHUB_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_AFTER_SHA: ${{ github.sha }}
         run: |
+          import sys
           import os
           import re
           import time
