@@ -75,7 +75,7 @@ jobs:
                       cwd=root,
                       text=True,
                   ).strip()
-                  print(f"::notice::mse.exe version: {version_output}")
+                  print(f"::notice::mse.exe version: {exe_version}")
 
               #### Get a list of packages that have changed in the push that triggered this job
               before = os.environ["GITHUB_BEFORE_SHA"]
