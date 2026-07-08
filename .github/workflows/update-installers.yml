@@ -92,6 +92,7 @@ jobs:
               print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
           
           ## Compute diff (transmit errors)
+          t0 = time.time()
           changed = subprocess.check_output(
               [
                   "git",
@@ -103,6 +104,7 @@ jobs:
               text=True,
               stderr=subprocess.STDOUT,
           ).splitlines()
+          print(f"::notice::computed diff in {time.time() - t0:.1f}s.")
 
           #### Iterate on the packages in the data folder (folders that end in ".mse-*")
           with installer_list.open("w", encoding="utf-8", newline="\n") as l:
@@ -200,37 +202,48 @@ jobs:
                       #### Rebuild the installer
                       installer_name = package.name + ".mse-installer"
 
-                      t0 = time.time()
-                      print(f"::notice::building installer for {package.name}.")
-                      subprocess.check_call(
-                          [
-                              str(root / "mse.exe"),
-                              "--create-installer",
-                              package.name,
-                              installer_name,
-                          ],
-                          cwd=root,
-                      )
-                      print(f"::notice::rebuilt installer for {package.name} in {time.time() - t0:.1f}s.")
+                      try:
+                          t0 = time.time()
+                          subprocess.run(
+                              [
+                                  str(root / "mse.exe"),
+                                  "--create-installer",
+                                  package.name,
+                                  installer_name,
+                              ],
+                              cwd=root,
+                              timeout=30,
+                              check=True,
+                          )
+                          print(f"::notice::rebuilt installer for {package.name} in {time.time() - t0:.1f}s.")
+
+                          #### Copy the installer to the Installer-Pack repo
+                          shutil.copy2(
+                              root / installer_name,
+                              installer_repo / installer_name,
+                          )
+
+                          #### Copy the icon to the Installer-Pack repo
+                          if "icon" in found_keys:
+                              icon_file = package / found_keys['icon']
+                              if icon_file.is_file():
+                                  shutil.copy2(
+                                      icon_file,
+                                      installer_repo / (package.name + ".icon.png"),
+                                  )
+                              else:
+                                  print(f"::warning::icon file {found_keys['icon']} not found for package {package.name}.")
+
+                      except subprocess.TimeoutExpired:
+                          print(f"::error::mse.exe timed out building {package.name} (likely a stuck dialog thrown because a package that this one depends on is missing from the data folder).")
+                          continue
+                      except subprocess.CalledProcessError as e:
+                          print(f"::error::mse.exe failed building {package.name} (exit code {e.returncode}).")
+                          continue
+                      except OSError as e:
+                          print(f"::error::failed to copy installer/icon for {package.name}: {e}")
+                          continue
           
-                      #### Copy the installer to the Installer-Pack repo
-                      shutil.copy2(
-                          root / installer_name,
-                          installer_repo / installer_name,
-                      )
-
-                      #### Copy the icon to the Installer-Pack repo
-                      if "icon" in found_keys:
-                          icon_file = package / found_keys['icon']
-
-                          if icon_file.is_file():
-                              shutil.copy2(
-                                  icon_file,
-                                  installer_repo / (package.name + ".icon.png"),
-                              )
-                          else:
-                              print(f"::warning::icon file {found_keys['icon']} not found for package {package.name}.")
-
           #### Copy the installer list to the Installer-Pack repo
           shutil.copy2(installer_list, installer_repo / installer_list.name)
 
