@@ -64,7 +64,7 @@ jobs:
               #### Check for mse.exe
               if not exe.is_file():
                   print(f"::error::executable mse.exe not found in root folder.")
-                  return
+                  sys.exit(1)
               else:
                   info = win32api.GetFileVersionInfo(exe, '\\')
                   ms = info['FileVersionMS']
