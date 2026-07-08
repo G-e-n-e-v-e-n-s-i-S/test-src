@@ -84,7 +84,7 @@ jobs:
                   ]
               )
               print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
-          
+
           ## Compute diff (transmit errors)
           t0 = time.time()
           changed = subprocess.check_output(
@@ -166,10 +166,11 @@ jobs:
                           entry = entry + f"		icon url:			https://github.com/MagicSetEditorPacks/Installer-Pack/raw/refs/heads/main/{package.name}.icon.png\n"
                       else:
                           print(f"::error::icon file {found_keys['icon']} not found for package {package.name}.")
-                          del found_keys['icon']
+                          continue
 
                   ## Write what the package depends on
                   with package_file.open(encoding="utf-8") as f:
+                      parse_failure = -1
                       lines = f.readlines()
                       for i, line in enumerate(lines):
 
@@ -181,14 +182,32 @@ jobs:
                           key, value = line.split(":", 1)
 
                           if key == "depends on":
-                              no_value = value.strip() == ""
-                              if no_value and i + 2 >= len(lines):
-                                  print(f"::error::can't parse dependency on line {i} of package {package.name}.")
-                                  continue
                               entry = entry + f"		{line}\n"
-                              if no_value:
-                                  entry = entry + f"		{lines[i + 1].rstrip("\r\n")}\n"
-                                  entry = entry + f"		{lines[i + 2].rstrip("\r\n")}\n"
+
+                              if value.strip() == "":
+
+                                  if i + 2 >= len(lines):
+                                      parse_failure = i
+                                      break
+
+                                  line2 = lines[i + 1].rstrip("\r\n")
+
+                                  if "version" not in line2 and "package" not in line2:
+                                      parse_failure = i+1
+                                      break
+
+                                  line3 = lines[i + 2].rstrip("\r\n")
+
+                                  if "version" not in line3 and "package" not in line3:
+                                      parse_failure = i+2
+                                      break
+
+                                  entry = entry + f"		{line2}\n"
+                                  entry = entry + f"		{line3}\n"
+
+                      if parse_failure >= 0:
+                          print(f"::error::can't parse dependency on line {parse_failure} of package {package.name}.")
+                          continue
 
                   #### Check if this package has changed
                   package_prefix = f"data/{package.name}/".replace("\\", "/")
@@ -237,9 +256,9 @@ jobs:
                       except OSError as e:
                           print(f"::error::failed to copy installer/icon for {package.name}: {e}")
                           continue
-          
+
                   l.write(entry)
-          
+
           #### Copy the installer list to the Installer-Pack repo
           shutil.copy2(installer_list, installer_repo / installer_list.name)
 
