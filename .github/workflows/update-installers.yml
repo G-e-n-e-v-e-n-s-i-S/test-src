@@ -89,7 +89,7 @@ jobs:
                       before,
                   ]
               )
-              print(f"::notice::checked out before commit in {time.time() - t0:.1f}s")
+              print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
           
           ## Compute diff (transmit errors)
           changed = subprocess.check_output(
@@ -117,10 +117,11 @@ jobs:
                   if not match:
                       continue
 
-                  package_file = package / match.group(2)
+                  package_type = match.group(2)
+                  package_file = package / package_type
 
                   if not package_file.exists():
-                      print(f"::warning::file {package_file} is missing in package {package.name}.")
+                      print(f"::warning::file {package_type} is missing in package {package.name}.")
                       continue
 
                   #### Get the header keys we need
@@ -200,7 +201,7 @@ jobs:
                       installer_name = package.name + ".mse-installer"
 
                       t0 = time.time()
-                      print(f"::notice::building installer for {package.name}")
+                      print(f"::notice::building installer for {package.name}.")
                       subprocess.check_call(
                           [
                               str(root / "mse.exe"),
@@ -210,7 +211,7 @@ jobs:
                           ],
                           cwd=root,
                       )
-                      print(f"::notice::built installer for {package.name} in {time.time() - t0:.1f}s")
+                      print(f"::notice::rebuilt installer for {package.name} in {time.time() - t0:.1f}s.")
           
                       #### Copy the installer to the Installer-Pack repo
                       shutil.copy2(
