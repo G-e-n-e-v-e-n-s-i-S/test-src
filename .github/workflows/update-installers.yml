@@ -44,11 +44,6 @@ jobs:
           from pathlib import Path
 
           #### Set up some context
-          root = Path.cwd()
-          data = root / "data"
-          installer_list = root / "packages.txt"
-          installer_repo = root / "installer-pack"
-
           keys = {
               "short name",
               "full name",
@@ -56,53 +51,72 @@ jobs:
               "installer group",
               "version",
           }
+          
+          root = Path.cwd()
+          exe = root / "mse.exe"
+          data = root / "data"
+          installer_repo = root / "installer-pack"
+          installer_list = root / "packages.txt"
 
-          #### Get a list of packages that have changes in the push that triggered this job
-          before = os.environ["GITHUB_BEFORE_SHA"]
-          after = os.environ["GITHUB_AFTER_SHA"]
-
-          ## Ensure the "before" commit is available locally (ignore errors)
-          t0 = time.time()
-          if subprocess.run(
-              [
-                  "git",
-                  "cat-file",
-                  "-e",
-                  f"{before}^{{commit}}",
-              ],
-              stdout=subprocess.DEVNULL,
-              stderr=subprocess.DEVNULL,
-          ).returncode != 0:
-              subprocess.check_call(
-                  [
-                      "git",
-                      "fetch",
-                      "--no-tags",
-                      "--depth=1",
-                      "origin",
-                      before,
-                  ]
-              )
-              print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
-
-          ## Compute diff (transmit errors)
-          t0 = time.time()
-          changed = subprocess.check_output(
-              [
-                  "git",
-                  "diff",
-                  "--name-only",
-                  before,
-                  after,
-              ],
-              text=True,
-              stderr=subprocess.STDOUT,
-          ).splitlines()
-          print(f"::notice::computed diff in {time.time() - t0:.1f}s.")
-
-          #### Iterate on the packages in the data folder (folders that end in ".mse-*")
           with installer_list.open("w", encoding="utf-8", newline="\n") as l:
 
+              #### Check for mse.exe
+              if not exe.is_file():
+                  print(f"::error::executable mse.exe not found in root folder.")
+                  return
+              else:
+                  info = win32api.GetFileVersionInfo(exe, '\\')
+                  ms = info['FileVersionMS']
+                  ls = info['FileVersionLS']
+                  print(f"::notice::hims {win32api.HIWORD(ms)}.")
+                  print(f"::notice::loms {win32api.LOWORD(ms)}.")
+                  print(f"::notice::hils {win32api.HIWORD(ls)}.")
+                  print(f"::notice::lols {win32api.LOWORD(ls)}.")
+              
+              #### Get a list of packages that have changed in the push that triggered this job
+              before = os.environ["GITHUB_BEFORE_SHA"]
+              after = os.environ["GITHUB_AFTER_SHA"]
+
+              ## Ensure the "before" commit is available locally (ignore errors)
+              t0 = time.time()
+              if subprocess.run(
+                  [
+                      "git",
+                      "cat-file",
+                      "-e",
+                      f"{before}^{{commit}}",
+                  ],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
+              ).returncode != 0:
+                  subprocess.check_call(
+                      [
+                          "git",
+                          "fetch",
+                          "--no-tags",
+                          "--depth=1",
+                          "origin",
+                          before,
+                      ]
+                  )
+                  print(f"::notice::checked out before commit in {time.time() - t0:.1f}s.")
+
+              ## Compute diff (transmit errors)
+              t0 = time.time()
+              changed = subprocess.check_output(
+                  [
+                      "git",
+                      "diff",
+                      "--name-only",
+                      before,
+                      after,
+                  ],
+                  text=True,
+                  stderr=subprocess.STDOUT,
+              ).splitlines()
+              print(f"::notice::computed diff in {time.time() - t0:.1f}s.")
+
+              #### Iterate on the packages in the data folder (folders that end in ".mse-*")
               for package in sorted(data.iterdir()):
 
                   if not package.is_dir():
@@ -150,7 +164,7 @@ jobs:
                   found_keys['short name'] = found_keys.get("short name", found_keys.get("full name", package.name))
                   found_keys['full name'] = found_keys.get("full name", found_keys.get("short name", package.name))
 
-                  #### Write the package's entry in the installer list
+                  #### Write the package's entry
                   entry =         f"installer:\n"
                   entry = entry + f"	url:				https://github.com/MagicSetEditorPacks/Installer-Pack/raw/refs/heads/main/{package.name}.mse-installer\n"
                   entry = entry + f"	downloadable:		true\n"
@@ -257,6 +271,7 @@ jobs:
                           print(f"::error::failed to copy installer/icon for {package.name}: {e}")
                           continue
 
+                  #### Write the package's entry in the installer list
                   l.write(entry)
 
           #### Copy the installer list to the Installer-Pack repo
