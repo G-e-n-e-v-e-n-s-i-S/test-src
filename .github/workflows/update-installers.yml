@@ -29,13 +29,7 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      
-      - name: Disable SmartScreen
-        shell: pwsh
-        run: |
-          New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Force | Out-Null
-          Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" -Value 0
-      
+
       - name: Generate installers
         shell: python
         env:
@@ -167,8 +161,12 @@ jobs:
                   l.write(f"		short name:			{found_keys['short name']}\n")
                   if found_keys['full name'] != found_keys['short name']:
                       l.write(f"		full name:			{found_keys['full name']}\n")
-                  if "icon" in found_keys and (package / found_keys['icon']).is_file():
-                      l.write(f"		icon url:			https://github.com/MagicSetEditorPacks/Installer-Pack/raw/refs/heads/main/{package.name}.icon.png\n")
+                  if "icon" in found_keys:
+                      if (package / found_keys['icon']).is_file():
+                          l.write(f"		icon url:			https://github.com/MagicSetEditorPacks/Installer-Pack/raw/refs/heads/main/{package.name}.icon.png\n")
+                      else:
+                          print(f"::error::icon file {found_keys['icon']} not found for package {package.name}.")
+                          del found_keys['icon']
 
                   ## Write what the package depends on
                   with package_file.open(encoding="utf-8") as f:
@@ -225,14 +223,10 @@ jobs:
 
                           #### Copy the icon to the Installer-Pack repo
                           if "icon" in found_keys:
-                              icon_file = package / found_keys['icon']
-                              if icon_file.is_file():
-                                  shutil.copy2(
-                                      icon_file,
-                                      installer_repo / (package.name + ".icon.png"),
-                                  )
-                              else:
-                                  print(f"::warning::icon file {found_keys['icon']} not found for package {package.name}.")
+                              shutil.copy2(
+                                  package / found_keys['icon'],
+                                  installer_repo / (package.name + ".icon.png"),
+                              )
 
                       except subprocess.TimeoutExpired:
                           print(f"::error::mse.exe timed out building {package.name} (likely a stuck dialog thrown because a package that this one depends on is missing from the data folder).")
