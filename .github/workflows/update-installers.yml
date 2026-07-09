@@ -18,18 +18,25 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Checkout Main-Magic-Pack
+        uses: actions/checkout@v6
+        with:
+          repository: G-e-n-e-v-e-n-s-i-S/test-main
+          token: ${{ secrets.SYNCING_ACTIONS_TOKEN }}
+          path: main-pack
+
       - name: Checkout Basic-Magic-Pack
         uses: actions/checkout@v6
         with:
           repository: G-e-n-e-v-e-n-s-i-S/test-basic
-          token: ${{ secrets.INSTALLER_PACK_TOKEN }}
+          token: ${{ secrets.SYNCING_ACTIONS_TOKEN }}
           path: basic-pack
 
       - name: Checkout Installer-Pack
         uses: actions/checkout@v6
         with:
           repository: G-e-n-e-v-e-n-s-i-S/test-dst
-          token: ${{ secrets.INSTALLER_PACK_TOKEN }}
+          token: ${{ secrets.SYNCING_ACTIONS_TOKEN }}
           path: installer-pack
 
       - name: Set up Python
@@ -107,8 +114,27 @@ jobs:
           root = Path.cwd()
           exe = root / "mse.exe"
           exe2 = root / "magicseteditor.exe"
+          com = root / "mse.com"
+          com2 = root / "magicseteditor.com"
           changelog = root / "changelog.txt"
           data = root / "data"
+
+          main_repo = root / "main-pack"
+          main_repo_data = main_repo / "data"
+          main_repo_packages = {
+              p.name
+              for p in main_repo_data.iterdir()
+              if p.is_dir() and re.fullmatch(r".+\.mse-.+", p.name)
+          }
+
+          basic_repo = root / "basic-pack"
+          basic_repo_data = basic_repo / "data"
+          basic_repo_packages = {
+              p.name
+              for p in basic_repo_data.iterdir()
+              if p.is_dir() and re.fullmatch(r".+\.mse-.+", p.name)
+          }
+
           installer_repo = root / "installer-pack"
           installer_list = root / "packages.txt"
 
@@ -121,6 +147,15 @@ jobs:
               if not exe2.is_file():
                   print(f"::error::executable {exe2.name} not found in root folder.")
                   sys.exit(1)
+              com_exists = com.is_file()
+              com2_exists = com2.is_file()
+              changelog_exists = changelog.is_file()
+              if not com_exists:
+                  print(f"::warning::executable {com.name} not found in root folder.")
+              if not com2_exists:
+                  print(f"::warning::executable {com2.name} not found in root folder.")
+              if not changelog_exists:
+                  print(f"::warning::file {changelog.name} not found in root folder.")
 
               #### Write exe entry in the installer list
               exe_version = subprocess.check_output(
@@ -144,19 +179,48 @@ jobs:
               l.write(f"		short name:			Magic Set Editor\n")
               l.write(f"		full name:			Application\n")
 
-              #### Check if exe has changed, if so rebuild the zip archive
+              #### Check if exe has changed
               if exe.name in changed or exe2.name in changed:
+                  #### Update the main pack
+                  t0 = time.time()
+                  shutil.copy2(exe, main_repo / exe.name)
+                  shutil.copy2(exe2, main_repo / exe2.name)
+                  if com_exists:
+                      shutil.copy2(com, main_repo / com.name)
+                  if com2_exists:
+                      shutil.copy2(com2, main_repo / com2.name)
+                  if changelog_exists:
+                      shutil.copy2(changelog, main_repo / changelog.name)
+                  print(f"::notice::synced exe into Main-Magic-Pack in {time.time() - t0:.1f}s.")
+
+                  #### Update the basic pack
+                  t0 = time.time()
+                  shutil.copy2(exe, basic_repo / exe.name)
+                  shutil.copy2(exe2, basic_repo / exe2.name)
+                  if com_exists:
+                      shutil.copy2(com, basic_repo / com.name)
+                  if com2_exists:
+                      shutil.copy2(com2, basic_repo / com2.name)
+                  if changelog_exists:
+                      shutil.copy2(changelog, basic_repo / changelog.name)
+                  print(f"::notice::synced exe into Basic-Magic-Pack in {time.time() - t0:.1f}s.")
+
+                  #### Rebuild the zip archive
+                  t0 = time.time()
                   zip_path = root / "magicseteditor.zip"
 
                   with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                       zf.write(exe, arcname=exe.name)
                       zf.write(exe2, arcname=exe2.name)
-                      if not changelog.exists():
-                          print(f"::warning::{changelog.name} not found in root folder.")
-                      else:
-                          zf.write(changelog, arcname=changelog.name)
+                      if com_exists:
+                         zf.write(com, arcname=com.name)
+                      if com2_exists:
+                         zf.write(com2, arcname=com2.name)
+                      if changelog_exists:
+                         zf.write(changelog, arcname=changelog.name)
 
                   shutil.copy2(zip_path, installer_repo / zip_path.name)
+                  print(f"::notice::rebuilt exe archive into Installer-Pack in {time.time() - t0:.1f}s.")
 
               #### Iterate on the packages in the data folder (folders that end in ".mse-*")
               for package in sorted(data.iterdir()):
@@ -272,6 +336,22 @@ jobs:
                       for path in changed
                   )
                   if package_changed:
+                      #### Update the main pack if necessary
+                      if package.name in main_repo_packages:
+                          t0 = time.time()
+                          main_repo_package = main_repo_data / package.name
+                          shutil.rmtree(main_repo_package)
+                          shutil.copytree(package, main_repo_package)
+                          print(f"::notice::synced {package.name} into Main-Magic-Pack in {time.time() - t0:.1f}s.")
+
+                      #### Update the basic pack if necessary
+                      if package.name in basic_repo_packages:
+                          t0 = time.time()
+                          basic_repo_package = basic_repo_data / package.name
+                          shutil.rmtree(basic_repo_package)
+                          shutil.copytree(package, basic_repo_package)
+                          print(f"::notice::synced {package.name} into Basic-Magic-Pack in {time.time() - t0:.1f}s.")
+
                       #### Rebuild the installer
                       installer_name = package.name + ".mse-installer"
 
@@ -288,13 +368,13 @@ jobs:
                               timeout=30,
                               check=True,
                           )
-                          print(f"::notice::rebuilt installer for {package.name} in {time.time() - t0:.1f}s.")
 
                           #### Copy the installer to the Installer-Pack repo
                           shutil.copy2(
                               root / installer_name,
                               installer_repo / installer_name,
                           )
+                          print(f"::notice::rebuilt installer for {package.name} into Installer-Pack in {time.time() - t0:.1f}s.")
 
                           #### Copy the icon to the Installer-Pack repo
                           if "icon" in found_keys:
@@ -304,10 +384,10 @@ jobs:
                               )
 
                       except subprocess.TimeoutExpired:
-                          print(f"::error::{exe.name} timed out building {package.name} (likely a stuck dialog thrown because a package that this one depends on is missing from the data folder).")
+                          print(f"::error::{exe.name} timed out building installer for {package.name} (likely a stuck dialog thrown because a package that this one depends on is missing from the data folder).")
                           continue
                       except subprocess.CalledProcessError as e:
-                          print(f"::error::{exe.name} failed building {package.name} (exit code {e.returncode}).")
+                          print(f"::error::{exe.name} failed building installer for {package.name} (exit code {e.returncode}).")
                           continue
                       except OSError as e:
                           print(f"::error::failed to copy installer/icon for {package.name}: {e}")
@@ -319,7 +399,51 @@ jobs:
           #### Copy the installer list to the Installer-Pack repo
           shutil.copy2(installer_list, installer_repo / installer_list.name)
 
-      - name: Commit and push
+      - name: Commit and push Main-Magic-Pack
+        working-directory: main-pack
+        shell: pwsh
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+          if (git diff --cached --quiet) {
+              Write-Host "No changes to commit."
+              exit 0
+          }
+
+          $commitUrl = "https://github.com/$env:GITHUB_REPOSITORY/commit/$env:GITHUB_SHA"
+
+          git commit -m "[Job] Sync with Full-Magic-Pack" -m "Triggered by $commitUrl"
+          git push
+
+      - name: Commit and push Basic-Magic-Pack
+        working-directory: basic-pack
+        shell: pwsh
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+          if (git diff --cached --quiet) {
+              Write-Host "No changes to commit."
+              exit 0
+          }
+
+          $commitUrl = "https://github.com/$env:GITHUB_REPOSITORY/commit/$env:GITHUB_SHA"
+
+          git commit -m "[Job] Sync with Full-Magic-Pack" -m "Triggered by $commitUrl"
+          git push
+
+      - name: Commit and push Installer-Pack
         working-directory: installer-pack
         shell: pwsh
         env:
@@ -338,5 +462,5 @@ jobs:
 
           $commitUrl = "https://github.com/$env:GITHUB_REPOSITORY/commit/$env:GITHUB_SHA"
 
-          git commit -m "[Job] Sync with Main" -m "Triggered by $commitUrl"
+          git commit -m "[Job] Sync with Full-Magic-Pack" -m "Triggered by $commitUrl"
           git push
