@@ -296,15 +296,15 @@ jobs:
                               found_keys[key] = value.strip()
 
                   if "version" not in found_keys:
-                      print(f"::warning::version header not found in package {package.name}.")
+                      print(f"::warning::'version' header not found in package {package.name}.")
                       found_keys['version'] = "0.0.0"
 
                   if "installer group" not in found_keys:
-                      print(f"::warning::installer group header not found in package {package.name}.")
+                      print(f"::warning::'installer group' header not found in package {package.name}.")
                       found_keys['installer group'] = "Unknown/" + package.name
 
                   if "short name" not in found_keys and "full name" not in found_keys:
-                      print(f"::warning::short and full name headers not found in package {package.name}.")
+                      print(f"::warning::'short name' and 'full name' headers not found in package {package.name}.")
 
                   found_keys['short name'] = found_keys.get("short name", found_keys.get("full name", package.name))
                   found_keys['full name'] = found_keys.get("full name", found_keys.get("short name", package.name))
