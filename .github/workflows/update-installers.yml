@@ -18,6 +18,13 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Checkout Basic-Magic-Pack
+        uses: actions/checkout@v6
+        with:
+          repository: G-e-n-e-v-e-n-s-i-S/test-basic
+          token: ${{ secrets.INSTALLER_PACK_TOKEN }}
+          path: basic-pack
+
       - name: Checkout Installer-Pack
         uses: actions/checkout@v6
         with:
@@ -137,7 +144,7 @@ jobs:
               l.write(f"		short name:			Magic Set Editor\n")
               l.write(f"		full name:			Application\n")
 
-              #### Check if exe was updated, if so rebuild the zip archive
+              #### Check if exe has changed, if so rebuild the zip archive
               if exe.name in changed or exe2.name in changed:
                   zip_path = root / "magicseteditor.zip"
 
@@ -315,6 +322,9 @@ jobs:
       - name: Commit and push
         working-directory: installer-pack
         shell: pwsh
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -326,5 +336,7 @@ jobs:
               exit 0
           }
 
-          git commit -m "[Job] Update installers"
+          $commitUrl = "https://github.com/$env:GITHUB_REPOSITORY/commit/$env:GITHUB_SHA"
+
+          git commit -m "[Job] Sync with Main" -m "Triggered by $commitUrl"
           git push
