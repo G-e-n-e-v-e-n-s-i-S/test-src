@@ -405,18 +405,6 @@ jobs:
                       #### Rebuild the installer
                       installer_name = package.name + ".mse-installer"
 
-                      ## Temporarily move ignored files out of the package so the installer can be built without them
-                      moved_folder = root / f"_ignored_{package.name}"
-                      moved_files = []
-                      for ignored_file in ignored_files.get(package.name, []):
-                          ignored_file_path = package / ignored_file
-                          if ignored_file_path.exists():
-                              moved_folder.mkdir(exist_ok=True)
-                              moved_path = moved_folder / ignored_file
-                              shutil.move(str(ignored_file_path), str(moved_path))
-                              moved_files.append((moved_path, ignored_file_path))
-                              print(f"::notice::file {ignored_file} for package {package.name} excluded from installer")
-
                       try:
                           ## Create installer
                           t0 = time.time()
@@ -431,6 +419,27 @@ jobs:
                               timeout=30,
                               check=True,
                           )
+
+                          ## Strip ignored files out of the installer archive
+                          ignored_prefixes = [
+                              f"{package.name}/{ignored_file}"
+                              for ignored_file in ignored_files.get(package.name, [])
+                          ]
+                          if ignored_prefixes:
+                              installer_path = root / installer_name
+                              stripped_path = root / (installer_name + ".stripped")
+                              removed_any = False
+                              with zipfile.ZipFile(installer_path, "r") as src, zipfile.ZipFile(stripped_path, "w", zipfile.ZIP_DEFLATED) as dst:
+                                  for item in src.infolist():
+                                      if any(item.filename == p or item.filename.startswith(p + "/") for p in ignored_prefixes):
+                                          removed_any = True
+                                          continue
+                                      dst.writestr(item, src.read(item.filename))
+                              if removed_any:
+                                  stripped_path.replace(installer_path)
+                                  print(f"::notice::removed ignored files from installer for package {package.name}.")
+                              else:
+                                  stripped_path.unlink()
 
                           ## Copy the installer to the Installer-Pack repo
                           shutil.copy2(
@@ -455,15 +464,6 @@ jobs:
                       except OSError as e:
                           print(f"::error::failed to copy installer/icon for package {package.name}: {e}")
                           continue
-                      finally:
-                          ## Move the ignored files back into the package
-                          for moved_path, ignored_file_path in moved_files:
-                              shutil.move(str(moved_path), str(ignored_file_path))
-                          if moved_files and moved_folder.exists():
-                              try:
-                                  moved_folder.rmdir()
-                              except OSError:
-                                  pass
 
                   #### Write the package's entry in the installer list
                   l.write(entry)
