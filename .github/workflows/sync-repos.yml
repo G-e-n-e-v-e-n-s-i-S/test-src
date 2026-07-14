@@ -103,7 +103,6 @@ jobs:
           print(f"::notice::diff computed in {time.time() - t0:.1f}s.")
 
           #### Set up some context
-          ## Header keys we need for the installers
           keys = {
               "short name",
               "full name",
@@ -112,17 +111,6 @@ jobs:
               "version",
           }
 
-          ## Files that must not be included in installers
-          ignored_files = {
-              "magic.mse-game":
-              [
-                  "custom_addons",
-                  "custom_script",
-                  "keywords_custom",
-              ],
-          }
-
-          ## Paths
           root = Path.cwd()
           exe = root / "mse.exe"
           exe2 = root / "magicseteditor.exe"
@@ -406,7 +394,6 @@ jobs:
                       installer_name = package.name + ".mse-installer"
 
                       try:
-                          ## Create installer
                           t0 = time.time()
                           subprocess.run(
                               [
@@ -420,35 +407,14 @@ jobs:
                               check=True,
                           )
 
-                          ## Strip ignored files out of the installer archive
-                          ignored_prefixes = [
-                              f"{package.name}/{ignored_file}"
-                              for ignored_file in ignored_files.get(package.name, [])
-                          ]
-                          if ignored_prefixes:
-                              installer_path = root / installer_name
-                              stripped_path = root / (installer_name + ".stripped")
-                              removed_any = False
-                              with zipfile.ZipFile(installer_path, "r") as src, zipfile.ZipFile(stripped_path, "w", zipfile.ZIP_DEFLATED) as dst:
-                                  for item in src.infolist():
-                                      if any(item.filename == p or item.filename.startswith(p + "/") for p in ignored_prefixes):
-                                          removed_any = True
-                                          continue
-                                      dst.writestr(item, src.read(item.filename))
-                              if removed_any:
-                                  stripped_path.replace(installer_path)
-                                  print(f"::notice::removed ignored files from installer for package {package.name}.")
-                              else:
-                                  stripped_path.unlink()
-
-                          ## Copy the installer to the Installer-Pack repo
+                          #### Copy the installer to the Installer-Pack repo
                           shutil.copy2(
                               root / installer_name,
                               installer_repo / installer_name,
                           )
                           print(f"::notice::installer for package {package.name} rebuilt into Installer-Pack in {time.time() - t0:.1f}s.")
 
-                          ## Copy the icon to the Installer-Pack repo
+                          #### Copy the icon to the Installer-Pack repo
                           if "icon" in found_keys:
                               shutil.copy2(
                                   package / found_keys['icon'],
