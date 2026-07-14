@@ -405,17 +405,17 @@ jobs:
                       #### Rebuild the installer
                       installer_name = package.name + ".mse-installer"
 
-                      ## Temporarily move ignored files out of the package so the installer can be built without them
-                      moved_folder = root / f"_ignored_{package.name}"
-                      moved_files = []
-                      for ignored_file in ignored_files.get(package.name, []):
-                          ignored_file_path = package / ignored_file
-                          if ignored_file_path.exists():
-                              moved_folder.mkdir(exist_ok=True)
-                              moved_path = moved_folder / ignored_file
-                              shutil.move(str(ignored_file_path), str(moved_path))
-                              moved_files.append((moved_path, ignored_file_path))
-                              print(f"::notice::file {ignored_file} for package {package.name} excluded from installer")
+                      ### Temporarily move ignored files out of the package so the installer can be built without them
+                      #moved_folder = root / f"_ignored_{package.name}"
+                      #moved_files = []
+                      #for ignored_file in ignored_files.get(package.name, []):
+                      #    ignored_file_path = package / ignored_file
+                      #    if ignored_file_path.exists():
+                      #        moved_folder.mkdir(exist_ok=True)
+                      #        moved_path = moved_folder / ignored_file
+                      #        shutil.move(str(ignored_file_path), str(moved_path))
+                      #        moved_files.append((moved_path, ignored_file_path))
+                      #        print(f"::notice::file {ignored_file} for package {package.name} excluded from installer")
 
                       try:
                           ## Create installer
@@ -455,15 +455,15 @@ jobs:
                       except OSError as e:
                           print(f"::error::failed to copy installer/icon for package {package.name}: {e}")
                           continue
-                      finally:
-                          ## Move the ignored files back into the package
-                          for moved_path, ignored_file_path in moved_files:
-                              shutil.move(str(moved_path), str(ignored_file_path))
-                          if moved_files and moved_folder.exists():
-                              try:
-                                  moved_folder.rmdir()
-                              except OSError:
-                                  pass
+                      #finally:
+                      #    ## Move the ignored files back into the package
+                      #    for moved_path, ignored_file_path in moved_files:
+                      #        shutil.move(str(moved_path), str(ignored_file_path))
+                      #    if moved_files and moved_folder.exists():
+                      #        try:
+                      #            moved_folder.rmdir()
+                      #        except OSError:
+                      #            pass
 
                   #### Write the package's entry in the installer list
                   l.write(entry)
