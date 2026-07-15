@@ -339,7 +339,7 @@ jobs:
                           key, value = line.split(":", 1)
 
                           if key == "read only file":
-                              entry = entry + f"		{line}\n"
+                              entry = entry + f"		read only file:		{value.strip()}\n"
 
                   ## Write what the package depends on
                   with package_file.open(encoding="utf-8") as f:
