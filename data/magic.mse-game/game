@@ -5,17 +5,13 @@ installer group: magic/game files
 icon: card-back.png
 position hint: 01
 
-version: 2034-02-28
+version: 2035-02-28
 depends on:
 	package: magic-blends.mse-include
 	version: 2026-02-28
 depends on:
 	package: magic-modules.mse-include
 	version: 2026-02-28
-
-read only file: custom_addons
-read only file: custom_script
-read only file: keywords_custom
 
 ########################################## Load the main scripts
 
@@ -37,5 +33,9 @@ include file: json_paths
 
 ########################################## Load custom user addons
 ########################################## Add/overwrite things in this file rather than editing the above files
+
+read only file: custom_addons
+read only file: custom_script
+read only file: keywords_custom
 
 include file: custom_addons
